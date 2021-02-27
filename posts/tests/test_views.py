@@ -300,7 +300,9 @@ class PagesTest(TestCase):
             data=form_data,
             follow=True
         )
-        self.assertTrue(self.post.comments.filter(text=form_data["text"]).exists())
+        self.assertTrue(self.post.comments.filter(
+            text=form_data["text"]
+        ).exists())
 
     def test_nonauthorized_user_cannot_comment(self):
         form_data = {"text": "Текст комментария"}
