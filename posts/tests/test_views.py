@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse, reverse_lazy
 
-from posts.models import Follow, Group, Post, User
+from posts.models import Comment, Follow, Group, Post, User
 
 
 class PagesTest(TestCase):
@@ -45,6 +45,27 @@ class PagesTest(TestCase):
             author=PagesTest.user,
             group=PagesTest.group1
         )
+        cls.small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x02\x00'
+            b'\x01\x00\x80\x00\x00\x00\x00\x00'
+            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
+            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
+            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
+            b'\x0A\x00\x3B'
+        )
+        cls.uploaded = SimpleUploadedFile(
+            name='small.gif',
+            content=PagesTest.small_gif,
+            content_type='image/gif'
+        )
+        cls.post_sub = Post.objects.create(
+            text="Заголовок поста 2",
+            author=PagesTest.user_for_subscribe
+        )
+        cls.post_another = Post.objects.create(
+            text="Заголовок поста 1",
+            author=PagesTest.another_user
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -69,10 +90,11 @@ class PagesTest(TestCase):
 
     def test_home_page_show_correct_context(self):
         response = self.authorized_client.get(reverse("index"))
-        post_text_0 = response.context.get(PagesTest.PAGE_NAME)[0].text
-        post_pub_date_0 = response.context.get(PagesTest.PAGE_NAME)[0].pub_date
-        post_author_0 = response.context.get(PagesTest.PAGE_NAME)[0].author
-        post_group_0 = response.context.get(PagesTest.PAGE_NAME)[0].group
+        post = response.context.get(PagesTest.PAGE_NAME)[1]
+        post_text_0 = post.text
+        post_pub_date_0 = post.pub_date
+        post_author_0 = post.author
+        post_group_0 = post.group
         count = len(response.context.get(PagesTest.PAGE_NAME).object_list)
         self.assertEqual(post_text_0, PagesTest.post.text)
         self.assertEqual(
@@ -87,10 +109,11 @@ class PagesTest(TestCase):
         response = self.authorized_client.get(reverse("group_posts", kwargs={
             "slug": PagesTest.group1.slug
         }))
-        post_text_0 = response.context.get(PagesTest.PAGE_NAME)[0].text
-        post_pub_date_0 = response.context.get(PagesTest.PAGE_NAME)[0].pub_date
-        post_author_0 = response.context.get(PagesTest.PAGE_NAME)[0].author
-        post_group_0 = response.context.get(PagesTest.PAGE_NAME)[0].group
+        post = response.context.get(PagesTest.PAGE_NAME)[0]
+        post_text_0 = post.text
+        post_pub_date_0 = post.pub_date
+        post_author_0 = post.author
+        post_group_0 = post.group
         self.assertEqual(post_text_0, PagesTest.post.text)
         self.assertEqual(
             post_pub_date_0.strftime("%d %m %Y"),
@@ -169,7 +192,7 @@ class PagesTest(TestCase):
     def test_post_with_group_in_index(self):
         cache.clear()
         response = self.authorized_client.get(reverse("index"))
-        group_slug = response.context.get(PagesTest.PAGE_NAME)[0].group.slug
+        group_slug = response.context.get(PagesTest.PAGE_NAME)[1].group.slug
         self.assertEqual(group_slug, PagesTest.group1.slug)
 
     def test_post_with_group_in_page_group(self):
@@ -207,42 +230,32 @@ class PagesTest(TestCase):
         cache.clear()
         response = self.authorized_client.get(reverse("index"))
         count = len(response.context.get(PagesTest.PAGE_NAME).object_list)
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 3)
 
     def test_context_contains_image(self):
-        small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-        uploaded = SimpleUploadedFile(
-            name='small.gif',
-            content=small_gif,
-            content_type='image/gif'
-        )
         post_with_image = Post.objects.create(
             text="Пост с картинкой",
             pub_date="20210202",
             author=self.user,
             group=self.group1,
-            image=uploaded
+            image=self.uploaded
         )
-        tests_urls = (
-            "/",
-            f"/{self.user.username}/",
-            f"/group/{self.group1.slug}/",
-        )
-        for url in tests_urls:
+        tests_urls = {
+            "index": None,
+            "profile": {"username": self.user.username},
+            "group_posts": {"slug": self.group1.slug},
+        }
+        for url, kwargs in tests_urls.items():
             with self.subTest(msg=url):
                 cache.clear()
-                response = self.authorized_client.get(url)
+                response = self.authorized_client.get(reverse(url,
+                                                              kwargs=kwargs))
                 response_image = response.context.get("page")[0].image
                 self.assertIsNotNone(response_image)
-        url = f"/{self.user.username}/{post_with_image.id}/"
-        response = self.authorized_client.get(url)
+        response = self.authorized_client.get(reverse("post", kwargs={
+            "username": self.user.username,
+            "post_id": post_with_image.id
+        }))
         response_image = response.context.get("post").image
         self.assertIsNotNone(response_image)
 
@@ -254,35 +267,68 @@ class PagesTest(TestCase):
         )
         response = self.authorized_client.get(reverse("index"))
         self.assertEqual(cached_content, response.content)
+        cache.clear()
+        response = self.authorized_client.get(reverse("index"))
+        self.assertNotEqual(cached_content, response.content)
 
-    def test_follow_unfollow(self):
-        count_follows = Follow.objects.all().count()
-        follow_url = f"/{self.user_for_subscribe.username}/follow/"
-        unfollow_url = f"/{self.user_for_subscribe.username}/unfollow/"
-        self.authorized_client.get(follow_url)
-        self.assertEqual(Follow.objects.all().count(), count_follows + 1)
-        self.authorized_client.get(unfollow_url)
-        self.assertEqual(Follow.objects.all().count(), count_follows)
+    def test_succes_follow(self):
+        self.authorized_client.get(reverse("profile_follow", kwargs={
+            "username": self.user_for_subscribe.username
+        }))
+        follow = Follow.objects.filter(author=self.user_for_subscribe,
+                                       user=self.user)
+        self.assertIsNotNone(follow)
 
-    def test_new_post_correct_feed(self):
-        post = Post.objects.create(
-            text="Заголовок поста 2",
-            author=self.user_for_subscribe
-        )
-        Post.objects.create(
-            text="Заголовок поста 1",
-            author=self.another_user
-        )
-        self.authorized_client.get(
-            f"/{self.user_for_subscribe.username}/follow/"
-        )
-        self.authorized_client.get(
-            f"/{self.another_user.username}/follow/"
-        )
+    def test_succes_unfollow(self):
+        self.authorized_client.get(reverse("profile_unfollow", kwargs={
+            "username": self.user_for_subscribe.username
+        }))
+        follow = Follow.objects.filter(author=self.user_for_subscribe,
+                                       user=self.user).count()
+        self.assertEqual(follow, 0)
+
+    def test_new_post_show_for_subscriber(self):
+        self.authorized_client.get(reverse("profile_follow", kwargs={
+            "username": self.user_for_subscribe.username
+        }))
+        self.authorized_client.get(reverse("profile_follow", kwargs={
+            "username": self.another_user.username
+        }))
         response = self.authorized_client.get(reverse("follow_index"))
-        self.assertIn(post, response.context.get("page"))
-        self.authorized_client.get(
-            f"/{self.user_for_subscribe.username}/unfollow/"
-        )
+        self.assertIn(self.post_sub, response.context.get("page"))
+
+    def test_new_post_dont_show_for_nonsubscriber(self):
         response = self.authorized_client.get(reverse("follow_index"))
-        self.assertNotIn(post, response.context.get("page"))
+        self.assertNotIn(self.post_sub, response.context.get("page"))
+
+    def test_authorized_user_can_comment(self):
+        form_data = {"text": "Текст комментария"}
+        count_comments = self.post.comments.count()
+        self.authorized_client.post(
+            reverse(
+                "add_comment",
+                kwargs={
+                    "username": self.user.username,
+                    "post_id": self.post.id
+                }
+            ),
+            data=form_data,
+            follow=True
+        )
+        self.assertEqual(self.post.comments.count(), count_comments + 1)
+
+    def test_nonauthorized_user_cannot_comment(self):
+        form_data = {"text": "Текст комментария"}
+        count_comments = Comment.objects.all().count()
+        self.anonymous_client.post(
+            reverse(
+                "add_comment",
+                kwargs={
+                    "username": self.user.username,
+                    "post_id": self.post.id
+                }
+            ),
+            data=form_data,
+            follow=True
+        )
+        self.assertEqual(Comment.objects.all().count(), count_comments)

@@ -64,7 +64,8 @@ class URLTests(TestCase):
                 response = self.guest_client.get(url)
                 self.assertEqual(
                     response.status_code,
-                    status_code
+                    status_code,
+                    url
                 )
 
     def test_urls_edit_posts_uses_correct_template(self):
@@ -83,5 +84,5 @@ class URLTests(TestCase):
                 )
 
     def test_urls_server_404_page_not_found(self):
-        response = self.guest_client.get("/page_not_found/")
+        response = self.authorized_client.get("/page_not_found/")
         self.assertEqual(response.status_code, 404)

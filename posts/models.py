@@ -49,7 +49,6 @@ class Post(models.Model):
 class Comment(models.Model):
     post = models.ForeignKey(
         Post,
-        blank=False,
         on_delete=models.CASCADE,
         related_name="comments",
         verbose_name="Комментарий",
@@ -57,7 +56,6 @@ class Comment(models.Model):
     )
     author = models.ForeignKey(
         User,
-        blank=False,
         on_delete=models.CASCADE,
         related_name="comments",
         verbose_name="Автор"
@@ -75,13 +73,11 @@ class Comment(models.Model):
 class Follow(models.Model):
     user = models.ForeignKey(
         User,
-        blank=False,
-        on_delete=False,
+        on_delete=models.CASCADE,
         related_name="follower"
     )
     author = models.ForeignKey(
         User,
-        blank=False,
-        on_delete=False,
+        on_delete=models.CASCADE,
         related_name="following"
     )
