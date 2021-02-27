@@ -288,8 +288,7 @@ class PagesTest(TestCase):
         self.assertNotIn(self.post_sub, response.context.get("page"))
 
     def test_authorized_user_can_comment(self):
-        form_data = {"text": "Текст комментария"}
-        count_comments = self.post.comments.count()
+        form_data = {"text": "Текст комментария для теста"}
         self.authorized_client.post(
             reverse(
                 "add_comment",
@@ -301,7 +300,7 @@ class PagesTest(TestCase):
             data=form_data,
             follow=True
         )
-        self.assertEqual(self.post.comments.count(), count_comments + 1)
+        self.assertTrue(self.post.comments.filter(text=form_data["text"]).exists())
 
     def test_nonauthorized_user_cannot_comment(self):
         form_data = {"text": "Текст комментария"}
