@@ -90,20 +90,7 @@ class PagesTest(TestCase):
 
     def test_home_page_show_correct_context(self):
         response = self.authorized_client.get(reverse("index"))
-        post = response.context.get(PagesTest.PAGE_NAME)[1]
-        post_text_0 = post.text
-        post_pub_date_0 = post.pub_date
-        post_author_0 = post.author
-        post_group_0 = post.group
-        count = len(response.context.get(PagesTest.PAGE_NAME).object_list)
-        self.assertEqual(post_text_0, PagesTest.post.text)
-        self.assertEqual(
-            post_pub_date_0.strftime("%d %m %Y"),
-            datetime.date.today().strftime("%d %m %Y")
-        )
-        self.assertEqual(post_author_0.username, PagesTest.test_username)
-        self.assertEqual(post_group_0.slug, PagesTest.group1.slug)
-        self.assertEqual(count, 1)
+        self.assertContains(response, PagesTest.post.text)
 
     def test_group_page_show_correct_context(self):
         response = self.authorized_client.get(reverse("group_posts", kwargs={
@@ -192,8 +179,7 @@ class PagesTest(TestCase):
     def test_post_with_group_in_index(self):
         cache.clear()
         response = self.authorized_client.get(reverse("index"))
-        group_slug = response.context.get(PagesTest.PAGE_NAME)[1].group.slug
-        self.assertEqual(group_slug, PagesTest.group1.slug)
+        self.assertContains(response, PagesTest.group1.slug)
 
     def test_post_with_group_in_page_group(self):
         response = self.authorized_client.get(
@@ -284,8 +270,8 @@ class PagesTest(TestCase):
             "username": self.user_for_subscribe.username
         }))
         follow = Follow.objects.filter(author=self.user_for_subscribe,
-                                       user=self.user).count()
-        self.assertEqual(follow, 0)
+                                       user=self.user).exists()
+        self.assertFalse(follow)
 
     def test_new_post_show_for_subscriber(self):
         self.authorized_client.get(reverse("profile_follow", kwargs={
