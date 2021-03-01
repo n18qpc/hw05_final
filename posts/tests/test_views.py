@@ -66,6 +66,13 @@ class PagesTest(TestCase):
             text="Заголовок поста 1",
             author=PagesTest.another_user
         )
+        cls.post_with_image = Post.objects.create(
+            text="Пост с картинкой",
+            pub_date="20210202",
+            author=PagesTest.user,
+            group=PagesTest.group1,
+            image=PagesTest.uploaded
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -96,7 +103,7 @@ class PagesTest(TestCase):
         response = self.authorized_client.get(reverse("group_posts", kwargs={
             "slug": PagesTest.group1.slug
         }))
-        post = response.context.get(PagesTest.PAGE_NAME)[0]
+        post = response.context.get(PagesTest.PAGE_NAME)[1]
         post_text_0 = post.text
         post_pub_date_0 = post.pub_date
         post_author_0 = post.author
@@ -146,10 +153,11 @@ class PagesTest(TestCase):
         response = self.authorized_client.get(reverse("profile", kwargs={
             "username": PagesTest.user.username
         }))
-        post_text_0 = response.context.get(PagesTest.PAGE_NAME)[0].text
-        post_pub_date_0 = response.context.get(PagesTest.PAGE_NAME)[0].pub_date
-        post_author_0 = response.context.get(PagesTest.PAGE_NAME)[0].author
-        post_group_0 = response.context.get(PagesTest.PAGE_NAME)[0].group
+        post = response.context.get(PagesTest.PAGE_NAME)[1]
+        post_text_0 = post.text
+        post_pub_date_0 = post.pub_date
+        post_author_0 = post.author
+        post_group_0 = post.group
         self.assertEqual(post_text_0, PagesTest.post.text)
         self.assertEqual(
             post_pub_date_0.strftime("%d %m %Y"),
@@ -216,16 +224,9 @@ class PagesTest(TestCase):
         cache.clear()
         response = self.authorized_client.get(reverse("index"))
         count = len(response.context.get(PagesTest.PAGE_NAME).object_list)
-        self.assertEqual(count, 3)
+        self.assertEqual(count, 4)
 
     def test_context_contains_image(self):
-        post_with_image = Post.objects.create(
-            text="Пост с картинкой",
-            pub_date="20210202",
-            author=self.user,
-            group=self.group1,
-            image=self.uploaded
-        )
         tests_urls = {
             "index": None,
             "profile": {"username": self.user.username},
@@ -240,10 +241,10 @@ class PagesTest(TestCase):
                 self.assertIsNotNone(response_image)
         response = self.authorized_client.get(reverse("post", kwargs={
             "username": self.user.username,
-            "post_id": post_with_image.id
+            "post_id": self.post_with_image.id
         }))
         response_image = response.context.get("post").image
-        self.assertIsNotNone(response_image)
+        self.assertIsNotNone(response_image.url)
 
     def test_cache_index_page(self):
         cached_content = self.authorized_client.get(reverse("index")).content
@@ -262,8 +263,8 @@ class PagesTest(TestCase):
             "username": self.user_for_subscribe.username
         }))
         follow = Follow.objects.filter(author=self.user_for_subscribe,
-                                       user=self.user)
-        self.assertIsNotNone(follow)
+                                       user=self.user).exists()
+        self.assertTrue(follow)
 
     def test_succes_unfollow(self):
         self.authorized_client.get(reverse("profile_unfollow", kwargs={
@@ -276,9 +277,6 @@ class PagesTest(TestCase):
     def test_new_post_show_for_subscriber(self):
         self.authorized_client.get(reverse("profile_follow", kwargs={
             "username": self.user_for_subscribe.username
-        }))
-        self.authorized_client.get(reverse("profile_follow", kwargs={
-            "username": self.another_user.username
         }))
         response = self.authorized_client.get(reverse("follow_index"))
         self.assertIn(self.post_sub, response.context.get("page"))

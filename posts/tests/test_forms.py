@@ -87,5 +87,5 @@ class TaskCreateFormTests(TestCase):
             data=form_data,
             follow=True
         )
-        post_with_image = Post.objects.filter(text="Пост с картинкой")
-        self.assertIsNotNone(post_with_image)
+        post_with_image = Post.objects.filter(text="Пост с картинкой").first()
+        self.assertIsNotNone(post_with_image.image.url)
