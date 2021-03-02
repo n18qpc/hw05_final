@@ -77,15 +77,15 @@ class TaskCreateFormTests(TestCase):
         self.post.refresh_from_db()
         self.assertEqual(self.post.text, "Измененный текст")
 
-    def test_create_post_with_image(self): 
-        form_data = { 
-            "text": "Пост с картинкой", 
-            "image": self.uploaded 
-        } 
-        self.authorized_client.post( 
-            reverse("new_post"), 
-            data=form_data, 
-            follow=True 
-        ) 
+    def test_create_post_with_image(self):
+        form_data = {
+            "text": "Пост с картинкой",
+            "image": self.uploaded
+        }
+        self.authorized_client.post(
+            reverse("new_post"),
+            data=form_data,
+            follow=True
+        )
         post_with_image = Post.objects.filter(text="Пост с картинкой").first()
-        self.assertEqual(post_with_image.text, form_data["text"]) 
+        self.assertEqual(post_with_image.text, form_data["text"])
